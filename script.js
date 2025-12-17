@@ -1,161 +1,147 @@
-// Состояние приложения
-let expenses = JSON.parse(localStorage.getItem('zenSpend_data')) || [];
-let categoryChart, dailyChart;
+let expenses = JSON.parse(localStorage.getItem('zen_pro_data')) || [];
+let budget = localStorage.getItem('zen_budget') || 0;
+let catChart;
 
-// Элементы
-const form = document.getElementById('expense-form');
-const expenseList = document.getElementById('expense-list');
-const totalSumEl = document.getElementById('total-sum');
-const totalCountEl = document.getElementById('total-count');
+window.onload = () => {
+    document.getElementById('date').valueAsDate = new Date();
+    document.getElementById('budget-input').value = budget > 0 ? budget : '';
+    initChart();
+    render();
+};
 
-// Инициализация графиков
-function initCharts() {
-    const ctxCat = document.getElementById('categoryChart').getContext('2d');
-    const ctxDay = document.getElementById('dailyChart').getContext('2d');
-
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } }
-    };
-
-    categoryChart = new Chart(ctxCat, {
+function initChart() {
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    catChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Food', 'Transport', 'Entertainment', 'Other'],
             datasets: [{
-                data: [0, 0, 0, 0],
-                backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#3f3f46'],
-                borderWidth: 0
+                data: [0,0,0,0],
+                backgroundColor: ['#8b5cf6', '#06b6d4', '#f59e0b', '#4b5563'],
+                borderWidth: 0,
+                cutout: '85%'
             }]
         },
-        options: commonOptions
-    });
-
-    dailyChart = new Chart(ctxDay, {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                backgroundColor: '#6366f1',
-                borderRadius: 4
-            }]
-        },
-        options: {
-            ...commonOptions,
-            scales: { 
-                y: { display: false }, 
-                x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 } } } 
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });
 }
 
-// Обновление интерфейса
-function updateUI() {
-    expenseList.innerHTML = '';
+function render(filterTerm = '') {
+    const list = document.getElementById('expense-list');
+    list.innerHTML = '';
     let total = 0;
-    
-    const sorted = [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    sorted.forEach(exp => {
+    const filtered = expenses.filter(e => 
+        e.comment.toLowerCase().includes(filterTerm.toLowerCase()) || 
+        e.category.toLowerCase().includes(filterTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(exp => {
         total += parseFloat(exp.amount);
-        const item = document.createElement('div');
-        item.className = 'expense-item';
-        item.innerHTML = `
-            <div class="expense-info">
-                <span class="cat">${translateCat(exp.category)}</span>
-                <span class="comm">${exp.comment || 'Без комментария'}</span>
-                <span class="date">${formatDate(exp.date)}</span>
+        const el = document.createElement('div');
+        el.className = 'expense-item';
+        el.style = "display:flex; justify-content:space-between; padding:15px 0; border-bottom:1px solid var(--border);";
+        el.innerHTML = `
+            <div>
+                <div style="font-size:10px; color:var(--accent); font-weight:800;">${exp.category.toUpperCase()}</div>
+                <div style="font-size:14px; font-weight:500;">${exp.comment || 'Без описания'}</div>
+                <div style="font-size:11px; color:var(--text-dim);">${exp.date}</div>
             </div>
-            <div class="expense-amount">
-                <span class="amt">${parseFloat(exp.amount).toLocaleString()} ₽</span>
-                <button class="delete-btn" onclick="deleteExpense('${exp.id}', this)">Удалить</button>
+            <div style="text-align:right;">
+                <div class="amt" style="font-weight:700;">${parseFloat(exp.amount).toLocaleString()} ₽</div>
+                <div style="font-size:10px; color:var(--danger); cursor:pointer;" onclick="deleteItem('${exp.id}')">Удалить</div>
             </div>
         `;
-        expenseList.appendChild(item);
+        list.appendChild(el);
     });
 
-    totalSumEl.textContent = `${total.toLocaleString()} ₽`;
-    totalCountEl.textContent = `${expenses.length} зап.`;
+    document.getElementById('total-sum').textContent = `${total.toLocaleString()} ₽`;
+    updateBudget(total);
+    updateChartData();
+    generateInsights(total);
+    localStorage.setItem('zen_pro_data', JSON.stringify(expenses));
+}
+
+function updateBudget(total) {
+    const progress = document.getElementById('budget-progress');
+    const text = document.getElementById('budget-text');
     
-    updateCharts();
-    localStorage.setItem('zenSpend_data', JSON.stringify(expenses));
+    if (budget > 0) {
+        const percent = Math.min((total / budget) * 100, 100);
+        progress.style.width = percent + '%';
+        progress.classList.toggle('warning', percent > 85);
+        text.innerHTML = `Израсходовано ${Math.round(percent)}% от лимита (${budget} ₽)`;
+    }
 }
 
-function updateCharts() {
-    const cats = { Food: 0, Transport: 0, Entertainment: 0, Other: 0 };
-    expenses.forEach(e => cats[e.category] += parseFloat(e.amount));
-    categoryChart.data.datasets[0].data = Object.values(cats);
-    categoryChart.update();
-
-    const last7Days = [...Array(7)].map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().split('T')[0];
-    }).reverse();
-
-    const dailyData = last7Days.map(date => {
-        return expenses
-            .filter(e => e.date === date)
-            .reduce((sum, e) => sum + parseFloat(e.amount), 0);
-    });
-
-    dailyChart.data.labels = last7Days.map(d => d.split('-').slice(2)); 
-    dailyChart.data.datasets[0].data = dailyData;
-    dailyChart.update();
+function generateInsights(total) {
+    const panel = document.getElementById('insights-panel');
+    const counts = { Food: 0, Transport: 0, Entertainment: 0, Other: 0 };
+    expenses.forEach(e => counts[e.category] += parseFloat(e.amount));
+    
+    const maxCat = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+    
+    panel.innerHTML = `
+        <div class="insight-item">💡 Больше всего трат в категории: <b>${maxCat}</b></div>
+        <div class="insight-item">📈 Средний чек: <b>${expenses.length ? Math.round(total/expenses.length) : 0} ₽</b></div>
+    `;
 }
 
-// Функции-помощники
-const translateCat = (cat) => ({
-    'Food': 'Еда', 'Transport': 'Транспорт', 'Entertainment': 'Досуг', 'Other': 'Другое'
-}[cat]);
-
-const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-
-// Обработка формы
-form.addEventListener('submit', (e) => {
+// Events
+document.getElementById('expense-form').onsubmit = (e) => {
     e.preventDefault();
-    const newExp = {
+    expenses.push({
         id: Date.now().toString(),
         amount: document.getElementById('amount').value,
         category: document.getElementById('category').value,
         date: document.getElementById('date').value,
         comment: document.getElementById('comment').value
-    };
-    expenses.push(newExp);
-    form.reset();
+    });
+    e.target.reset();
     document.getElementById('date').valueAsDate = new Date();
-    updateUI();
-});
+    render();
+};
 
-// Удаление и Экспорт
-window.deleteExpense = (id, btn) => {
-    if (btn.classList.contains('confirm')) {
+document.getElementById('budget-input').onchange = (e) => {
+    budget = parseFloat(e.target.value) || 0;
+    localStorage.setItem('zen_budget', budget);
+    render();
+};
+
+document.getElementById('search-input').oninput = (e) => render(e.target.value);
+
+document.getElementById('privacy-toggle').onclick = () => document.body.classList.toggle('privacy-enabled');
+
+document.getElementById('download-png').onclick = () => {
+    html2canvas(document.getElementById('capture-area'), { backgroundColor: '#050505', scale: 2 }).then(canvas => {
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL();
+        a.download = 'report.png';
+        a.click();
+    });
+};
+
+function deleteItem(id) {
+    if(confirm('Удалить запись?')) {
         expenses = expenses.filter(e => e.id !== id);
-        updateUI();
-    } else {
-        btn.textContent = 'Уверены?';
-        btn.classList.add('confirm');
-        setTimeout(() => { if(btn) { btn.textContent = 'Удалить'; btn.classList.remove('confirm'); } }, 3000);
+        render();
     }
-};
+}
 
-document.getElementById('export-btn').addEventListener('click', () => {
-    if (!expenses.length) return alert('Нет данных');
-    const content = "Дата;Категория;Сумма;Комментарий\n" + 
-        expenses.map(e => `${e.date};${e.category};${e.amount};${e.comment}`).join("\n");
-    const blob = new Blob(["\ufeff" + content], { type: 'text/csv;charset=utf-8;' });
+function updateChartData() {
+    const counts = { Food: 0, Transport: 0, Entertainment: 0, Other: 0 };
+    expenses.forEach(e => counts[e.category] += parseFloat(e.amount));
+    catChart.data.datasets[0].data = Object.values(counts);
+    catChart.update();
+}
+
+function exportCSV() {
+    let csv = "\uFEFFДата,Категория,Сумма,Комментарий\n";
+    expenses.forEach(e => csv += `${e.date},${e.category},${e.amount},"${e.comment}"\n`);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
-    link.download = `ZenSpend_${new Date().toISOString().slice(0,10)}.csv`;
+    link.download = 'expenses.csv';
     link.click();
-});
-
-window.onload = () => {
-    document.getElementById('date').valueAsDate = new Date();
-    initCharts();
-    updateUI();
-};
+}
