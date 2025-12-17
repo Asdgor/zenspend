@@ -2,92 +2,105 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZenSpend — Smart Finance Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ZenSpend Pro — Finance Intelligence</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
-<div class="glow-capture"></div>
+<div class="blob-bg"></div>
 
-<main class="container">
-    <header class="header">
-        <div class="logo">
-            <div class="logo-icon"></div>
-            <h1>ZenSpend</h1>
+<main class="app-container">
+    <header class="main-header">
+        <div class="brand">
+            <div class="brand-logo"></div>
+            <div>
+                <h1>ZenSpend <span class="badge">PRO</span></h1>
+                <p id="dynamic-subtitle">Умный контроль ваших средств</p>
+            </div>
         </div>
-        <p class="subtitle">Управляйте финансами локально и анонимно.</p>
+        <div class="header-actions">
+            <button id="privacy-toggle" class="btn-icon-alt" title="Скрыть суммы">👁</button>
+            <div class="sync-status">● Offline First</div>
+        </div>
     </header>
 
-    <section class="dashboard">
-        <div class="main-content">
-            <div class="card card-form">
+    <div class="grid-layout">
+        <section class="left-col">
+            <div class="card glass-card budget-card">
+                <div class="budget-info">
+                    <label>Месячный лимит</label>
+                    <input type="number" id="budget-input" placeholder="Установить лимит...">
+                </div>
+                <div class="progress-container">
+                    <div id="budget-progress" class="progress-bar"></div>
+                </div>
+                <p id="budget-text">Укажите лимит, чтобы следить за прогрессом</p>
+            </div>
+
+            <div class="card glass-card">
                 <form id="expense-form">
-                    <div class="input-group">
-                        <label>Сумма</label>
-                        <input type="number" id="amount" placeholder="0.00" required step="0.01">
-                    </div>
-                    
-                    <div class="input-row">
-                        <div class="input-group">
+                    <div class="form-grid">
+                        <div class="input-box full">
+                            <label>Сумма</label>
+                            <input type="number" id="amount" placeholder="0.00" required step="0.01">
+                        </div>
+                        <div class="input-box">
                             <label>Категория</label>
                             <select id="category">
                                 <option value="Food">🍕 Еда</option>
-                                <option value="Transport">🚗 Транспорт</option>
-                                <option value="Entertainment">🎭 Развлечения</option>
-                                <option value="Other">📦 Другое</option>
+                                <option value="Transport">🚕 Транспорт</option>
+                                <option value="Entertainment">🍿 Досуг</option>
+                                <option value="Other">🛠 Другое</option>
                             </select>
                         </div>
-                        <div class="input-group">
+                        <div class="input-box">
                             <label>Дата</label>
                             <input type="date" id="date" required>
                         </div>
+                        <div class="input-box full">
+                            <label>Комментарий</label>
+                            <input type="text" id="comment" placeholder="Например: Ужин в ресторане">
+                        </div>
                     </div>
-
-                    <div class="input-group">
-                        <label>Комментарий</label>
-                        <input type="text" id="comment" placeholder="На что потратили?">
-                    </div>
-
-                    <button type="submit" class="btn-primary">Добавить транзакцию</button>
+                    <button type="submit" class="btn-main">Зафиксировать трату</button>
                 </form>
             </div>
 
-            <div class="card list-card">
+            <div class="card glass-card list-card">
                 <div class="card-header">
-                    <div class="title-group">
-                        <h3>История операций</h3>
-                        <span id="total-count">0 записей</span>
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="Поиск по транзакциям...">
                     </div>
-                    <button id="export-btn" class="btn-secondary">Экспорт CSV</button>
                 </div>
                 <div id="expense-list" class="expense-list"></div>
             </div>
-        </div>
+        </section>
 
-        <aside class="sidebar">
-            <div class="card stats-card">
-                <h3>Общий баланс</h3>
-                <div class="total-amount" id="total-sum">0.00 ₽</div>
-            </div>
-
-            <div class="card chart-card">
-                <h3>По категориям</h3>
-                <div class="chart-container">
+        <aside class="right-col">
+            <div class="card stats-main" id="capture-area">
+                <div class="stats-label">Всего потрачено</div>
+                <div class="stats-value" id="total-sum">0 ₽</div>
+                
+                <div class="chart-box">
                     <canvas id="categoryChart"></canvas>
                 </div>
+
+                <div class="insights" id="insights-panel">
+                    </div>
+
+                <div class="capture-footer">ZenSpend Pro • Analytics Report</div>
             </div>
 
-            <div class="card chart-card">
-                <h3>Активность (7 дней)</h3>
-                <div class="chart-container">
-                    <canvas id="dailyChart"></canvas>
-                </div>
+            <div class="action-buttons">
+                <button id="download-png" class="btn-outline">📸 Снимок экрана (PNG)</button>
+                <button onclick="exportCSV()" class="btn-outline-alt">📊 Экспорт в CSV</button>
             </div>
         </aside>
-    </section>
+    </div>
 </main>
 
 <script src="script.js"></script>
